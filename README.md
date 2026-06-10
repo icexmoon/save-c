@@ -8,7 +8,7 @@
 ## 安装
 
 ```bash
-pip install .
+pip install save-c
 ```
 
 或开发模式安装（编辑后即时生效）：
@@ -69,6 +69,14 @@ savec scan -d C:\Users\xxx\AppData
 
 ```bash
 savec scan --dry-run
+```
+
+# 配置
+
+可以通过 GUI 配置关键内容，比如扫描目录以及迁移的目标目录等。
+
+```bash
+savec config
 ```
 
 ### Python API
