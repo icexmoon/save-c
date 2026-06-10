@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "save-c"
-version = "1.0.0"
+version = "1.1.0"
 description = "将 C 盘目录迁移到 D 盘并创建软链接，安全释放 C 盘空间"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,8 +24,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/user/save-c"
-Source = "https://github.com/user/save-c"
+Homepage = "https://github.com/icexmoon/save-c"
+Source = "https://github.com/icexmoon/save-c"
 
 [project.scripts]
 savec = "savec.cli:main"
