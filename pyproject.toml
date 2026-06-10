@@ -8,10 +8,10 @@ version = "1.0.0"
 description = "将 C 盘目录迁移到 D 盘并创建软链接，安全释放 C 盘空间"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 keywords = ["disk", "symlink", "space-saver", "windows"]
 authors = [
-  {name = "save-c contributors"}
+  {name = "icexmoon", email = "icexmoon@qq.com"}
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -20,7 +20,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Operating System :: Microsoft :: Windows",
-  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: Apache Software License",
 ]
 
 [project.urls]
@@ -35,3 +35,4 @@ packages = ["src/savec"]
 
 [tool.hatch.build.targets.sdist]
 include = ["/src"]
+
