@@ -6,5 +6,10 @@ __version__ = "1.0.0"
 
 from savec.core import move_and_link, DryRunError
 from savec.scan import ScanEntry, scan_and_select_interactive
+from savec.config import SavecConfig, load_config, save_config, open_config_gui
 
-__all__ = ["move_and_link", "DryRunError", "ScanEntry", "scan_and_select_interactive"]
+__all__ = [
+    "move_and_link", "DryRunError",
+    "ScanEntry", "scan_and_select_interactive",
+    "SavecConfig", "load_config", "save_config", "open_config_gui",
+]

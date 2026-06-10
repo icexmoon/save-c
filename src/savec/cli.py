@@ -10,6 +10,7 @@ import sys
 
 from savec import __version__
 from savec.core import DryRunError, move_and_link
+from savec.config import load_config, open_config_gui
 from savec.scan import scan_and_select_interactive
 
 
@@ -119,16 +120,29 @@ def _run_move(argv: list[str]) -> int:
         return 1
 
 
+def _run_config(argv: list[str]) -> int:
+    open_config_gui()
+    return 0
+
+
 def _run_scan(argv: list[str]) -> int:
     """扫描模式：交互式扫描、选择并迁移。"""
     parser = _build_scan_parser()
     args = parser.parse_args(argv)
+    cfg = load_config()
+    if any(a in argv for a in ("-d", "--dir")):
+        base_dirs = [args.dir]
+    else:
+        base_dirs = cfg.scan_dirs
+    dest_dir = args.dest_dir if any(a in argv for a in ("--dest-dir",)) else cfg.dest_dir
+    min_size_mb = args.min_size if any(a in argv for a in ("--min-size",)) else cfg.min_size_mb
     return scan_and_select_interactive(
-        args.dir,
-        dest_dir=args.dest_dir,
+        base_dirs,
+        dest_dir=dest_dir,
         dry_run=args.dry_run,
-        min_size=args.min_size * 1024 * 1024,
+        min_size=min_size_mb * 1024 * 1024,
         no_cache=args.no_cache,
+        cache_ttl=cfg.cache_ttl,
     )
 
 
@@ -136,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    if argv and argv[0] == "config":
+        return _run_config(argv[1:])
     if argv and argv[0] == "scan":
         return _run_scan(argv[1:])
     elif argv and argv[0] == "--help":
