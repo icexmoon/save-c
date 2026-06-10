@@ -4,14 +4,59 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sys
+import time
 from dataclasses import dataclass
 
 from savec.core import DryRunError, move_and_link
 
 # 扫描时忽略的特殊目录（用户主目录下的系统级目录）
 SKIP_DIRS = frozenset({"appdata", "onedrive", "documents"})
+
+CACHE_DIR = os.path.join(os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp")), "savec-scan-cache")
+CACHE_TTL = 600
+
+
+def _cache_path(base_dir):
+    h = hashlib.sha256(base_dir.encode("utf-8")).hexdigest()[:16]
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    return os.path.join(CACHE_DIR, f"{h}.json")
+
+
+def _load_cache(base_dir):
+    cpath = _cache_path(base_dir)
+    if not os.path.isfile(cpath):
+        return None
+    try:
+        with open(cpath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if time.time() - data["created_at"] > CACHE_TTL:
+            return None
+        entries = [ScanEntry(**e) for e in data["entries"]]
+        return entries, data["symlink_count"]
+    except (json.JSONDecodeError, KeyError, OSError):
+        return None
+
+
+def _save_cache(base_dir, entries, symlink_count):
+    cpath = _cache_path(base_dir)
+    data = {
+        "base_dir": base_dir,
+        "created_at": time.time(),
+        "symlink_count": symlink_count,
+        "entries": [
+            {"name": e.name, "path": e.path, "size_bytes": e.size_bytes, "is_symlink": e.is_symlink}
+            for e in entries
+        ],
+    }
+    try:
+        with open(cpath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except OSError:
+        pass
 
 
 @dataclass
@@ -94,6 +139,7 @@ def scan_and_select_interactive(
     dest_dir: str = "D:\\moved_from_c",
     dry_run: bool = False,
     min_size: int = 500 * 1024 * 1024,
+    no_cache: bool = False,
 ) -> int:
     """扫描、展示、交互式选择并迁移目录。
 
@@ -105,68 +151,88 @@ def scan_and_select_interactive(
         print(f"[X] 目录不存在: {base_dir}")
         return 1
 
-    # ── 1. 列出所有子目录 ──
-    print(f"正在扫描 {base_dir} ...")
-    all_entries, symlink_count = _list_dirs(base_dir)
+    # -- 0. 尝试读取缓存 --
+    loaded_from_cache = False
+    if not no_cache:
+        cached = _load_cache(base_dir)
+        if cached is not None:
+            all_entries, symlink_count = cached
+            loaded_from_cache = True
+            print(f"正在扫描 {base_dir} ...")
+            print("  使用缓存结果（10分钟内有效）")
 
-    if not all_entries:
-        print("  未发现任何子目录。")
-        return 0
+    if not loaded_from_cache:
+        # -- 1. 列出所有子目录 --
+        print(f"正在扫描 {base_dir} ...")
+        all_entries, symlink_count = _list_dirs(base_dir)
 
-    # ── 过滤掉不需要扫描的特殊目录 ──
-    skip_count = 0
-    filtered: list[ScanEntry] = []
-    for e in all_entries:
-        if e.name.lower() in SKIP_DIRS:
-            skip_count += 1
-            continue
-        filtered.append(e)
-    all_entries = filtered
-
-    # ── 额外扫描 AppData\Local 和 AppData\Roaming 下的子目录 ──
-    appdata_extra = 0
-    for rel in ("AppData\\Local", "AppData\\Roaming"):
-        sub_dir = os.path.join(base_dir, rel)
-        if os.path.isdir(sub_dir):
-            sub_entries, sub_links = _list_dirs(sub_dir)
-            for e in sub_entries:
-                if not e.is_symlink:
-                    e.name = f"{rel}\\{e.name}"
-            all_entries.extend(sub_entries)
-            symlink_count += sub_links
-            appdata_extra += len(sub_entries)
-
-    if not all_entries:
-        if skip_count and not appdata_extra:
-            print(f"  扫描完成，仅剩余 {skip_count} 个已过滤的目录，无需处理。")
-            return 0
-        elif not skip_count and not appdata_extra:
+        if not all_entries:
             print("  未发现任何子目录。")
             return 0
 
-    if skip_count:
-        print(f"  已过滤 {skip_count} 个特殊目录（AppData / OneDrive / Documents）")
-    if appdata_extra:
-        print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
+        # -- 过滤掉不需要扫描的特殊目录 --
+        skip_count = 0
+        filtered = []
+        for e in all_entries:
+            if e.name.lower() in SKIP_DIRS:
+                skip_count += 1
+                continue
+            filtered.append(e)
+        all_entries = filtered
 
-    # ── 2. 分离已迁移（软链接）和待扫描目录 ──
-    # ── 2. 分离已迁移（软链接）和待扫描目录 ──
-    to_scan = [e for e in all_entries if not e.is_symlink]
-    if not to_scan:
-        print(f"  所有子目录均已迁移（共 {symlink_count} 个软链接），无需处理。")
-        return 0
+        # -- 额外扫描 AppData\Local 和 AppData\Roaming --
+        appdata_extra = 0
+        for rel in ("AppData\\Local", "AppData\\Roaming"):
+            sub_dir = os.path.join(base_dir, rel)
+            if os.path.isdir(sub_dir):
+                sub_entries, sub_links = _list_dirs(sub_dir)
+                for e in sub_entries:
+                    if not e.is_symlink:
+                        e.name = f"{rel}\\{e.name}"
+                all_entries.extend(sub_entries)
+                symlink_count += sub_links
+                appdata_extra += len(sub_entries)
 
-    print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
+        if not all_entries:
+            if skip_count and not appdata_extra:
+                print(f"  扫描完成，仅剩余 {skip_count} 个已过滤的目录，无需处理。")
+                return 0
+            elif not skip_count and not appdata_extra:
+                print("  未发现任何子目录。")
+                return 0
 
-    # ── 3. 计算每个目录大小 ──
-    total_dirs = len(to_scan)
-    print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)
-    for i, entry in enumerate(to_scan, 1):
-        entry.size_bytes = _calc_dir_size(entry.path, report_name=entry.name)
-        sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{total_dirs}  {entry.name}  {format_size(entry.size_bytes)}  ")
-        sys.stdout.flush()
-    print()
+        if skip_count:
+            print(f"  已过滤 {skip_count} 个特殊目录")
+        if appdata_extra:
+            print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
 
+        # -- 2. 分离已迁移（软链接）和待扫描目录 --
+        to_scan = [e for e in all_entries if not e.is_symlink]
+        if not to_scan:
+            print(f"  所有子目录均已迁移（共 {symlink_count} 个软链接），无需处理。")
+            return 0
+
+        print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
+
+        # -- 3. 计算每个目录大小 --
+        total_dirs = len(to_scan)
+        print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)
+        for i, entry in enumerate(to_scan, 1):
+            entry.size_bytes = _calc_dir_size(entry.path)
+            sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{total_dirs}  {entry.name}  {format_size(entry.size_bytes)}  ")
+            sys.stdout.flush()
+        print()
+
+        _save_cache(base_dir, all_entries, symlink_count)
+
+    else:
+        to_scan = [e for e in all_entries if not e.is_symlink]
+        if not to_scan:
+            print("  所有子目录均已迁移，无需处理。")
+            return 0
+        print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
+
+    # -- 4. 按大小降序排列 --
     # ── 4. 按大小降序排列 ──
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
 

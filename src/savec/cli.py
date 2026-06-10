@@ -80,6 +80,11 @@ def _build_scan_parser() -> argparse.ArgumentParser:
         metavar="MB",
         help="只显示大于指定大小（MB）的目录（默认: 500MB）。",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="忽略缓存，强制重新扫描。",
+    )
     return parser
 
 
@@ -123,6 +128,7 @@ def _run_scan(argv: list[str]) -> int:
         dest_dir=args.dest_dir,
         dry_run=args.dry_run,
         min_size=args.min_size * 1024 * 1024,
+        no_cache=args.no_cache,
     )
 
 
@@ -144,3 +150,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
