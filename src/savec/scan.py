@@ -160,10 +160,12 @@ def scan_and_select_interactive(
 
     # ── 3. 计算每个目录大小 ──
     total_dirs = len(to_scan)
+    print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)
     for i, entry in enumerate(to_scan, 1):
-        print(f"  计算大小 [{i}/{total_dirs}] {entry.name} ...", end="", flush=True)
         entry.size_bytes = _calc_dir_size(entry.path, report_name=entry.name)
-        print(f"  {format_size(entry.size_bytes)}")
+        sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{total_dirs}  {entry.name}  {format_size(entry.size_bytes)}  ")
+        sys.stdout.flush()
+    print()
 
     # ── 4. 按大小降序排列 ──
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
