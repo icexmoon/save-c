@@ -93,6 +93,7 @@ def scan_and_select_interactive(
     *,
     dest_dir: str = "D:\\moved_from_c",
     dry_run: bool = False,
+    min_size: int = 500 * 1024 * 1024,
 ) -> int:
     """扫描、展示、交互式选择并迁移目录。
 
@@ -122,16 +123,33 @@ def scan_and_select_interactive(
         filtered.append(e)
     all_entries = filtered
 
+    # ── 额外扫描 AppData\Local 和 AppData\Roaming 下的子目录 ──
+    appdata_extra = 0
+    for rel in ("AppData\\Local", "AppData\\Roaming"):
+        sub_dir = os.path.join(base_dir, rel)
+        if os.path.isdir(sub_dir):
+            sub_entries, sub_links = _list_dirs(sub_dir)
+            for e in sub_entries:
+                if not e.is_symlink:
+                    e.name = f"{rel}\\{e.name}"
+            all_entries.extend(sub_entries)
+            symlink_count += sub_links
+            appdata_extra += len(sub_entries)
+
     if not all_entries:
-        if skip_count:
+        if skip_count and not appdata_extra:
             print(f"  扫描完成，仅剩余 {skip_count} 个已过滤的目录，无需处理。")
-        else:
+            return 0
+        elif not skip_count and not appdata_extra:
             print("  未发现任何子目录。")
-        return 0
+            return 0
 
     if skip_count:
         print(f"  已过滤 {skip_count} 个特殊目录（AppData / OneDrive / Documents）")
+    if appdata_extra:
+        print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
 
+    # ── 2. 分离已迁移（软链接）和待扫描目录 ──
     # ── 2. 分离已迁移（软链接）和待扫描目录 ──
     to_scan = [e for e in all_entries if not e.is_symlink]
     if not to_scan:
@@ -149,6 +167,25 @@ def scan_and_select_interactive(
 
     # ── 4. 按大小降序排列 ──
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
+
+    # ── 过滤小于 min_size 的目录 ──
+    hidden_count = 0
+    hidden_total = 0
+    filtered: list[ScanEntry] = []
+    for e in to_scan:
+        if e.size_bytes < min_size:
+            hidden_count += 1
+            hidden_total += e.size_bytes
+        else:
+            filtered.append(e)
+    to_scan = filtered
+
+    if hidden_count:
+        print(f"  已忽略 {hidden_count} 个小于 {format_size(min_size)} 的目录(合计 {format_size(hidden_total)})")
+
+    if not to_scan:
+        print("  所有目录均小于阈值，无需处理。")
+        return 0
 
     # ── 5. 展示结果 ──
     print()
@@ -230,3 +267,4 @@ def _select_entries(entries: list[ScanEntry]) -> list[ScanEntry]:
         if 1 <= idx <= len(entries):
             result.append(entries[idx - 1])
     return result
+

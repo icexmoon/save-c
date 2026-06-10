@@ -73,6 +73,13 @@ def _build_scan_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="模拟运行，不做实际修改。",
     )
+    parser.add_argument(
+        "--min-size",
+        type=int,
+        default=500,
+        metavar="MB",
+        help="只显示大于指定大小（MB）的目录（默认: 500MB）。",
+    )
     return parser
 
 
@@ -115,6 +122,7 @@ def _run_scan(argv: list[str]) -> int:
         args.dir,
         dest_dir=args.dest_dir,
         dry_run=args.dry_run,
+        min_size=args.min_size * 1024 * 1024,
     )
 
 
