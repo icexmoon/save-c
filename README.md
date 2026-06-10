@@ -51,12 +51,36 @@ savec C:\Users\xxx\SomeDir --force
 savec C:\Users\xxx\SomeDir --dest-dir D:\my_moved
 ```
 
+## 扫描模式（批量迁移）
+
+扫描用户目录下的所有子目录，统计占用的磁盘空间，交互式选择要迁移的目录。
+
+```bash
+savec scan
+```
+
+### 扫描指定目录
+
+```bash
+savec scan -d C:\Users\xxx\AppData
+```
+
+### 扫描并模拟运行
+
+```bash
+savec scan --dry-run
+```
+
 ### Python API
 
 ```python
 from savec import move_and_link
 
 move_and_link("C:\\Users\\xxx\\SomeDir", dry_run=True)
+
+from savec import scan_and_select_interactive
+
+scan_and_select_interactive("C:\\Users\\xxx", dry_run=True)
 ```
 
 ## 安全说明
