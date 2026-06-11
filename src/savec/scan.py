@@ -41,7 +41,9 @@ def _load_cache(cache_key: str, ttl: int = CACHE_TTL):
         return None
 
 
-def _save_cache(cache_key: str, entries, symlink_count):
+def _save_cache(cache_key: str | list[str], entries, symlink_count):
+    # 如果 cache_key 是列表，拼接成字符串
+    cache_key = "|".join(sorted(cache_key)) if isinstance(cache_key, list) else cache_key
     cpath = _cache_path(cache_key)
     data = {
         "cache_key": cache_key,
@@ -215,6 +217,8 @@ def scan_and_select_interactive(
             sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{len(to_scan)}  {entry.name}  {format_size(entry.size_bytes)}  ")
             sys.stdout.flush()
         print()
+        # 缓存计算结果
+        _save_cache(base_dir, all_entries, symlink_count)
         print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
 
         total_dirs = len(to_scan)
@@ -225,7 +229,7 @@ def scan_and_select_interactive(
             return 0
         print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
 
-        print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)    # -- 4. 按大小降序排列 --
+        # print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)    # -- 4. 按大小降序排列 --
     # ── 4. 按大小降序排列 ──
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
 
