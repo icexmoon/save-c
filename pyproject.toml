@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "save-c"
-version = "1.2.1"
+version = "1.2.2"
 description = "将 C 盘目录迁移到 D 盘并创建软链接，安全释放 C 盘空间"
 readme = "README.md"
 requires-python = ">=3.10"
