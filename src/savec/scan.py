@@ -112,22 +112,21 @@ def _list_dirs(base_dir: str) -> tuple[list[ScanEntry], int]:
 
 
 def _calc_dir_size(dirpath: str, *, report_name: str = "") -> int:
-    """递归计算目录大小。
-
-    跳过内部软链接子目录，避免重复计算和无限递归。
-    """
+    """递归计算目录大小。"""
     total = 0
     try:
-        for root, dirs, files in os.walk(dirpath, followlinks=False):
-            dirs[:] = [d for d in dirs
-                       if not os.path.islink(os.path.join(root, d))]
-            for f in files:
-                fpath = os.path.join(root, f)
-                try:
-                    if not os.path.islink(fpath):
-                        total += os.path.getsize(fpath)
-                except (OSError, PermissionError):
-                    pass
+        stack = [dirpath]
+        while stack:
+            current = stack.pop(0)
+            try:
+                with os.scandir(current) as it:
+                    for entry in it:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat().st_size
+            except (OSError, PermissionError):
+                pass
     except (OSError, PermissionError):
         pass
     return total
@@ -168,62 +167,57 @@ def scan_and_select_interactive(
             loaded_from_cache = True
             print("  使用缓存结果（10分钟内有效）")
 
-        if not loaded_from_cache:
-            all_entries = []
-            symlink_count = 0
+    if not loaded_from_cache:
+        all_entries = []
+        symlink_count = 0
 
-            for _dir in base_dirs:
-                _dir = _dir.rstrip("\\/")
-                if not os.path.isdir(_dir):
-                    print(f"  [WARN] 扫描目录不存在，跳过: {_dir}")
+        for _dir in base_dirs:
+            _dir = _dir.rstrip("\\/")
+            if not os.path.isdir(_dir):
+                print(f"  [WARN] 扫描目录不存在，跳过: {_dir}")
+                continue
+
+            print(f"正在扫描 {_dir} ...")
+            entries, sl = _list_dirs(_dir)
+            if not entries:
+                continue
+
+            skip_count = 0
+            filtered = []
+            for e in entries:
+                if e.path in skip_dirs:
+                    skip_count += 1
                     continue
+                filtered.append(e)
+            entries = filtered
 
-                print(f"正在扫描 {_dir} ...")
-                entries, sl = _list_dirs(_dir)
-                if not entries:
-                    continue
+            appdata_extra = 0
 
-                skip_count = 0
-                filtered = []
-                for e in entries:
-                    if e.name.lower() in skip_set:
-                        skip_count += 1
-                        continue
-                    filtered.append(e)
-                entries = filtered
+            if skip_count:
+                print(f"  已过滤 {skip_count} 个特殊目录")
+            # if appdata_extra:
+            #     print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
 
-                appdata_extra = 0
-                for rel in ("AppData\\Local", "AppData\\Roaming"):
-                    sub_dir = os.path.join(_dir, rel)
-                    if os.path.isdir(sub_dir):
-                        sub_entries, sub_links = _list_dirs(sub_dir)
-                        for e in sub_entries:
-                            if not e.is_symlink:
-                                e.name = f"{rel}\\{e.name}"
-                        entries.extend(sub_entries)
-                        sl += sub_links
-                        appdata_extra += len(sub_entries)
+            all_entries.extend(entries)
+            symlink_count += sl
 
-                if skip_count:
-                    print(f"  已过滤 {skip_count} 个特殊目录")
-                if appdata_extra:
-                    print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
+        if not all_entries:
+            print("  未发现任何子目录。")
+            return 0
 
-                all_entries.extend(entries)
-                symlink_count += sl
+        to_scan = [e for e in all_entries if not e.is_symlink]
+        if not to_scan:
+            print(f"  所有子目录均已迁移（共 {symlink_count} 个软链接），无需处理。")
+            return 0
+        
+        for i, entry in enumerate(to_scan, 1):
+            entry.size_bytes = _calc_dir_size(entry.path)
+            sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{len(to_scan)}  {entry.name}  {format_size(entry.size_bytes)}  ")
+            sys.stdout.flush()
+        print()
+        print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
 
-            if not all_entries:
-                print("  未发现任何子目录。")
-                return 0
-
-            to_scan = [e for e in all_entries if not e.is_symlink]
-            if not to_scan:
-                print(f"  所有子目录均已迁移（共 {symlink_count} 个软链接），无需处理。")
-                return 0
-
-            print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
-
-            total_dirs = len(to_scan)
+        total_dirs = len(to_scan)
     else:
         to_scan = [e for e in all_entries if not e.is_symlink]
         if not to_scan:
@@ -236,6 +230,7 @@ def scan_and_select_interactive(
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
 
     # ── 过滤小于 min_size 的目录 ──
+    total_before = len(to_scan)
     hidden_count = 0
     hidden_total = 0
     filtered: list[ScanEntry] = []
@@ -251,7 +246,7 @@ def scan_and_select_interactive(
         print(f"  已忽略 {hidden_count} 个小于 {format_size(min_size)} 的目录(合计 {format_size(hidden_total)})")
 
     if not to_scan:
-        print("  所有目录均小于阈值，无需处理。")
+        print(f"  共扫描到 {total_before} 个目录，均小于 {format_size(min_size)}，全部忽略（使用 --min-size 0 查看所有目录）")
         return 0
 
     # ── 5. 展示结果 ──
@@ -260,7 +255,7 @@ def scan_and_select_interactive(
     print(f"  {'':─>4} {'─'*10}  {'─'*50}")
     for idx, entry in enumerate(to_scan, 1):
         size_str = format_size(entry.size_bytes)
-        print(f"  {idx:>3}  {size_str}  {entry.name}")
+        print(f"  {idx:>3}  {size_str}  {entry.path}")
 
     total_size = sum(e.size_bytes for e in to_scan)
     print(f"  {'':─>4} {'─'*10}  {'─'*50}")

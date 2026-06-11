@@ -41,12 +41,14 @@ def _build_move_parser() -> argparse.ArgumentParser:
         help="模拟运行，打印动作日志但不做任何实际修改。",
     )
     parser.add_argument(
-        "-f", "--force",
+        "-f",
+        "--force",
         action="store_true",
         help="跳过二次确认提示。",
     )
     parser.add_argument(
-        "-V", "--version",
+        "-V",
+        "--version",
         action="version",
         version=f"save-c {__version__}",
         help="显示版本信息并退出。",
@@ -60,7 +62,8 @@ def _build_scan_parser() -> argparse.ArgumentParser:
         description="扫描目录，统计可迁移的空间并交互式选择迁移。",
     )
     parser.add_argument(
-        "-d", "--dir",
+        "-d",
+        "--dir",
         default=os.path.expanduser("~"),
         help="要扫描的目录（默认: 当前用户主目录）。",
     )
@@ -134,8 +137,12 @@ def _run_scan(argv: list[str]) -> int:
         base_dirs = [args.dir]
     else:
         base_dirs = cfg.scan_dirs
-    dest_dir = args.dest_dir if any(a in argv for a in ("--dest-dir",)) else cfg.dest_dir
-    min_size_mb = args.min_size if any(a in argv for a in ("--min-size",)) else cfg.min_size_mb
+    dest_dir = (
+        args.dest_dir if any(a in argv for a in ("--dest-dir",)) else cfg.dest_dir
+    )
+    min_size_mb = (
+        args.min_size if any(a in argv for a in ("--min-size",)) else cfg.min_size_mb
+    )
     return scan_and_select_interactive(
         base_dirs,
         dest_dir=dest_dir,
@@ -167,5 +174,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
