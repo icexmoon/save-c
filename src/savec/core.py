@@ -162,5 +162,7 @@ def move_and_link(
         print(f"\n[X] 执行异常: {e}")
         traceback.print_exc()
         if os.path.exists(dst_full) and not os.path.exists(src):
-            print(f"[WARN] 异常中断，请手动检查:\n   源目录: {src}\n   备份目录: {dst_full}")
+            # 已经转移成功，原始目录被删除，但没有成功创建软链接
+            print(f"[WARN] 异常中断，创建软链接失败:\n   源目录: {src}\n   备份目录: {dst_full}")
+            print(f"请尝试在管理员权限下手动创建软链接：mklink /D \"{src}\" \"{dst_full}\"")
         raise
