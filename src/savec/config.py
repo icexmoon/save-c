@@ -21,10 +21,10 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 @dataclass
 class SavecConfig:
     """应用配置。"""
-    scan_dirs: list[str] = field(default_factory=lambda: [os.path.expanduser("~")])
+    scan_dirs: list[str] = field(default_factory=lambda: [os.path.expanduser("~"), os.path.join(os.path.expanduser("~"), "AppData", "Local"), os.path.join(os.path.expanduser("~"), "AppData", "Roaming")])
     cache_ttl: int = 600
     min_size_mb: int = 500
-    dest_dir: str = "D:\\moved_from_c"
+    dest_dir: str = "D:\\moved_from_c"\n    skip_dirs: list[str] = field(default_factory=lambda: ["AppData", "OneDrive"])
 
 
 def load_config() -> SavecConfig:
@@ -51,7 +51,7 @@ def open_config_gui() -> None:
     cfg = load_config()
     root = tk.Tk()
     root.title("save-c 配置")
-    root.geometry("580x460")
+    root.geometry("580x540")
     root.resizable(False, False)
 
     # ── 扫描目录列表 ──
@@ -125,7 +125,7 @@ def open_config_gui() -> None:
     root.mainloop()
 
 
-def _do_save(root: tk.Tk, listbox: tk.Listbox, ttl_var: tk.IntVar,
+def _do_save(root: tk.Tk, listbox: tk.Listbox, skip_listbox: tk.Listbox, ttl_var: tk.IntVar,
              size_var: tk.IntVar, dest_var: tk.StringVar) -> None:
     """收集表单数据并保存。"""
     dirs = list(listbox.get(0, "end"))
@@ -136,8 +136,7 @@ def _do_save(root: tk.Tk, listbox: tk.Listbox, ttl_var: tk.IntVar,
     if not dest:
         messagebox.showerror("错误", "请输入迁移目标目录。")
         return
-    cfg = SavecConfig(
-        scan_dirs=dirs,
+    cfg = SavecConfig(\n        scan_dirs=dirs,\n        skip_dirs=list(skip_listbox.get(0, "end")),
         cache_ttl=ttl_var.get() * 60,
         min_size_mb=size_var.get(),
         dest_dir=dest,
@@ -145,3 +144,5 @@ def _do_save(root: tk.Tk, listbox: tk.Listbox, ttl_var: tk.IntVar,
     save_config(cfg)
     messagebox.showinfo("完成", "配置已保存。")
     root.destroy()
+
+

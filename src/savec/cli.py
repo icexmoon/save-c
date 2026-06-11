@@ -142,6 +142,7 @@ def _run_scan(argv: list[str]) -> int:
         dry_run=args.dry_run,
         min_size=min_size_mb * 1024 * 1024,
         no_cache=args.no_cache,
+        skip_dirs=cfg.skip_dirs,
         cache_ttl=cfg.cache_ttl,
     )
 
@@ -166,4 +167,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

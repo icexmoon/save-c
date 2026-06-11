@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.svg" alt="save-c" width="256">
+</p>
+
 # save-c
 
 将 C 盘目录迁移到 D 盘并创建目录软链接（symlink），安全释放 C 盘空间。
@@ -102,4 +106,5 @@ scan_and_select_interactive("C:\\Users\\xxx", dry_run=True)
 ## 许可证
 
 Apache-2.0
+
 

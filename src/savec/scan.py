@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from savec.core import DryRunError, move_and_link
 
 # 扫描时忽略的特殊目录（用户主目录下的系统级目录）
-SKIP_DIRS = frozenset({"appdata", "onedrive", "documents"})
+# skip_dirs is now configured via SavecConfig.skip_dirs or skip_dirs parameter
 
 CACHE_DIR = os.path.join(os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp")), "savec-scan-cache")
 CACHE_TTL = 600
@@ -140,6 +140,8 @@ def scan_and_select_interactive(
     dry_run: bool = False,
     min_size: int = 500 * 1024 * 1024,
     no_cache: bool = False,
+    skip_dirs: list[str] | None = None,
+    cache_ttl: int | None = None,
 ) -> int:
     """扫描、展示、交互式选择并迁移目录。
 
@@ -155,6 +157,8 @@ def scan_and_select_interactive(
         base_dirs = list(base_dir)
     cache_key = "|".join(sorted(base_dirs))
     ttl = cache_ttl if cache_ttl is not None else CACHE_TTL
+
+    skip_set = frozenset(s.lower() for s in skip_dirs) if skip_dirs is not None else frozenset({"appdata", "onedrive"})
 
     loaded_from_cache = False
     if not no_cache:
@@ -182,7 +186,7 @@ def scan_and_select_interactive(
                 skip_count = 0
                 filtered = []
                 for e in entries:
-                    if e.name.lower() in SKIP_DIRS:
+                    if e.name.lower() in skip_set:
                         skip_count += 1
                         continue
                     filtered.append(e)
@@ -330,5 +334,6 @@ def _select_entries(entries: list[ScanEntry]) -> list[ScanEntry]:
         if 1 <= idx <= len(entries):
             result.append(entries[idx - 1])
     return result
+
 
 
