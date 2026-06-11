@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.svg" alt="save-c" width="256">
+  <img src="https://image2.icexmoon.cn/image/savec.svg" alt="save-c" width="256">
 </p>
 
 # save-c
