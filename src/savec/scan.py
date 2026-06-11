@@ -301,6 +301,18 @@ def scan_and_select_interactive(
     fail = 0
     chosen_size = sum(e.size_bytes for e in chosen)
     print(f"\n开始迁移 {len(chosen)} 个目录（合计 {format_size(chosen_size)}）...\n")
+    # 先列出迁移内容，方便用户确认
+    print(f"{'='*60}")
+    print(f"  迁移目录:")
+    for entry in chosen:
+        print(f"  {entry.path}")
+    print(f"{'='*60}")
+    print()
+    # 确认是否继续执行
+    confirm = input("确认执行迁移？(y/n)：").strip().lower()
+    if confirm != "y":
+        print("[CANCEL] 用户取消，退出。")
+        return 0
     for entry in chosen:
         print(f"{'='*60}")
         print(f"  处理: {entry.path}")
