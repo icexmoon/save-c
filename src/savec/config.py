@@ -24,7 +24,8 @@ class SavecConfig:
     scan_dirs: list[str] = field(default_factory=lambda: [os.path.expanduser("~"), os.path.join(os.path.expanduser("~"), "AppData", "Local"), os.path.join(os.path.expanduser("~"), "AppData", "Roaming")])
     cache_ttl: int = 600
     min_size_mb: int = 500
-    dest_dir: str = "D:\\moved_from_c"\n    skip_dirs: list[str] = field(default_factory=lambda: ["AppData", "OneDrive"])
+    dest_dir: str = "D:\\moved_from_c"
+    skip_dirs: list[str] = field(default_factory=lambda: [os.path.join(os.path.expanduser("~"), "AppData"), os.path.join(os.path.expanduser("~"), "OneDrive")])
 
 
 def load_config() -> SavecConfig:
@@ -51,7 +52,7 @@ def open_config_gui() -> None:
     cfg = load_config()
     root = tk.Tk()
     root.title("save-c 配置")
-    root.geometry("580x540")
+    root.geometry("580x620")
     root.resizable(False, False)
 
     # ── 扫描目录列表 ──
@@ -74,7 +75,7 @@ def open_config_gui() -> None:
     def add_dir():
         d = filedialog.askdirectory(title="选择要扫描的目录")
         if d:
-            listbox.insert("end", d)
+            listbox.insert("end", os.path.normpath(d))
 
     def remove_dir():
         sel = listbox.curselection()
@@ -84,6 +85,39 @@ def open_config_gui() -> None:
 
     tk.Button(btn_frame, text="+ 添加目录", command=add_dir, width=12).pack(side="left", padx=(0, 6))
     tk.Button(btn_frame, text="X 删除", command=remove_dir, width=8).pack(side="left")
+
+    # -- 跳过目录列表 --
+    tk.Label(root, text="跳过以下目录（不统计容量）:", anchor="w").pack(fill="x", padx=12, pady=(14, 2))
+    skip_frame = tk.Frame(root)
+    skip_frame.pack(fill="x", padx=12, pady=2)
+
+    skip_listbox = tk.Listbox(skip_frame, height=3)
+    skip_listbox.pack(side="left", fill="x", expand=True)
+    skip_scrollbar = tk.Scrollbar(skip_frame, orient="vertical")
+    skip_scrollbar.pack(side="right", fill="y")
+    skip_listbox.config(yscrollcommand=skip_scrollbar.set)
+    skip_scrollbar.config(command=skip_listbox.yview)
+    for d in cfg.skip_dirs:
+        skip_listbox.insert("end", d)
+
+    skip_btn_frame = tk.Frame(root)
+    skip_btn_frame.pack(fill="x", padx=12, pady=4)
+
+    def add_skip():
+        d = filedialog.askdirectory(title="选择要跳过的目录")
+        if d:
+            skip_listbox.insert("end", os.path.normpath(d))
+            skip_listbox.insert("end", name)
+
+    def remove_skip():
+        sel = skip_listbox.curselection()
+        if sel:
+            if messagebox.askyesno("确认", "删除跳过目录\n" + skip_listbox.get(sel[0]) + "?"):
+                skip_listbox.delete(sel[0])
+
+    tk.Button(skip_btn_frame, text="+ 添加目录", command=add_skip, width=12).pack(side="left", padx=(0, 6))
+    tk.Button(skip_btn_frame, text="X 删除", command=remove_skip, width=8).pack(side="left")
+
 
     # ── 缓存有效时长 ──
     tk.Label(root, text="缓存有效时长:", anchor="w").pack(fill="x", padx=12, pady=(14, 2))
@@ -112,7 +146,7 @@ def open_config_gui() -> None:
     def browse_dest():
         d = filedialog.askdirectory(title="选择 D 盘目标根目录", initialdir=dest_var.get())
         if d:
-            dest_var.set(d)
+            dest_var.set(os.path.normpath(d))
 
     tk.Button(dest_frame, text="浏览...", command=browse_dest).pack(side="left", padx=6)
 
@@ -120,7 +154,7 @@ def open_config_gui() -> None:
     btn_bottom = tk.Frame(root)
     btn_bottom.pack(fill="x", padx=12, pady=(20, 12))
     tk.Button(btn_bottom, text="取消", width=10, command=root.destroy).pack(side="right", padx=(6, 0))
-    tk.Button(btn_bottom, text="保存", width=10, command=lambda: _do_save(root, listbox, ttl_var, size_var, dest_var)).pack(side="right")
+    tk.Button(btn_bottom, text="保存", width=10, command=lambda: _do_save(root, listbox, skip_listbox, ttl_var, size_var, dest_var)).pack(side="right")
 
     root.mainloop()
 
@@ -136,7 +170,9 @@ def _do_save(root: tk.Tk, listbox: tk.Listbox, skip_listbox: tk.Listbox, ttl_var
     if not dest:
         messagebox.showerror("错误", "请输入迁移目标目录。")
         return
-    cfg = SavecConfig(\n        scan_dirs=dirs,\n        skip_dirs=list(skip_listbox.get(0, "end")),
+    cfg = SavecConfig(
+        scan_dirs=dirs,
+        skip_dirs=list(skip_listbox.get(0, "end")),
         cache_ttl=ttl_var.get() * 60,
         min_size_mb=size_var.get(),
         dest_dir=dest,
@@ -144,5 +180,8 @@ def _do_save(root: tk.Tk, listbox: tk.Listbox, skip_listbox: tk.Listbox, ttl_var
     save_config(cfg)
     messagebox.showinfo("完成", "配置已保存。")
     root.destroy()
+
+
+
 
 

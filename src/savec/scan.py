@@ -158,7 +158,7 @@ def scan_and_select_interactive(
     cache_key = "|".join(sorted(base_dirs))
     ttl = cache_ttl if cache_ttl is not None else CACHE_TTL
 
-    skip_set = frozenset(s.lower() for s in skip_dirs) if skip_dirs is not None else frozenset({"appdata", "onedrive"})
+    skip_set = frozenset(os.path.basename(s).lower() for s in skip_dirs) if skip_dirs is not None else frozenset({"appdata", "onedrive"})
 
     loaded_from_cache = False
     if not no_cache:

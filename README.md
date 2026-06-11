@@ -75,7 +75,7 @@ savec scan -d C:\Users\xxx\AppData
 savec scan --dry-run
 ```
 
-# 配置
+## 配置
 
 可以通过 GUI 配置关键内容，比如扫描目录以及迁移的目标目录等。
 
