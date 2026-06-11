@@ -35,6 +35,22 @@ def load_config() -> SavecConfig:
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
+
+        # Migration: upgrade old single-dir default to three dirs
+        if data.get("scan_dirs") == [os.path.expanduser("~")]:
+            data["scan_dirs"] = [
+                os.path.expanduser("~"),
+                os.path.join(os.path.expanduser("~"), "AppData", "Local"),
+                os.path.join(os.path.expanduser("~"), "AppData", "Roaming"),
+            ]
+
+        # Migration: upgrade old skip_dirs (names) to full paths
+        if "skip_dirs" in data:
+            data["skip_dirs"] = [
+                os.path.join(os.path.expanduser("~"), s) if not os.path.isabs(s) else s
+                for s in data["skip_dirs"]
+            ]
+
         return SavecConfig(**data)
     except (json.JSONDecodeError, KeyError, OSError):
         return SavecConfig()
@@ -107,7 +123,6 @@ def open_config_gui() -> None:
         d = filedialog.askdirectory(title="选择要跳过的目录")
         if d:
             skip_listbox.insert("end", os.path.normpath(d))
-            skip_listbox.insert("end", name)
 
     def remove_skip():
         sel = skip_listbox.curselection()
