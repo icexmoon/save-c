@@ -16,7 +16,9 @@ from savec.core import DryRunError, move_and_link
 # 扫描时忽略的特殊目录（用户主目录下的系统级目录）
 # skip_dirs is now configured via SavecConfig.skip_dirs or skip_dirs parameter
 
-CACHE_DIR = os.path.join(os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp")), "savec-scan-cache")
+CACHE_DIR = os.path.join(
+    os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp")), "savec-scan-cache"
+)
 CACHE_TTL = 600
 
 
@@ -43,14 +45,21 @@ def _load_cache(cache_key: str, ttl: int = CACHE_TTL):
 
 def _save_cache(cache_key: str | list[str], entries, symlink_count):
     # 如果 cache_key 是列表，拼接成字符串
-    cache_key = "|".join(sorted(cache_key)) if isinstance(cache_key, list) else cache_key
+    cache_key = (
+        "|".join(sorted(cache_key)) if isinstance(cache_key, list) else cache_key
+    )
     cpath = _cache_path(cache_key)
     data = {
         "cache_key": cache_key,
         "created_at": time.time(),
         "symlink_count": symlink_count,
         "entries": [
-            {"name": e.name, "path": e.path, "size_bytes": e.size_bytes, "is_symlink": e.is_symlink}
+            {
+                "name": e.name,
+                "path": e.path,
+                "size_bytes": e.size_bytes,
+                "is_symlink": e.is_symlink,
+            }
             for e in entries
         ],
     }
@@ -64,6 +73,7 @@ def _save_cache(cache_key: str | list[str], entries, symlink_count):
 @dataclass
 class ScanEntry:
     """单个扫描结果。"""
+
     name: str
     path: str
     size_bytes: int
@@ -97,12 +107,14 @@ def _list_dirs(base_dir: str) -> tuple[list[ScanEntry], int]:
                 if not entry.is_dir(follow_symlinks=False):
                     continue
                 is_link = os.path.islink(entry.path)
-                entries.append(ScanEntry(
-                    name=entry.name,
-                    path=entry.path,
-                    size_bytes=0,
-                    is_symlink=is_link,
-                ))
+                entries.append(
+                    ScanEntry(
+                        name=entry.name,
+                        path=entry.path,
+                        size_bytes=0,
+                        is_symlink=is_link,
+                    )
+                )
                 if is_link:
                     symlink_count += 1
     except PermissionError:
@@ -159,7 +171,11 @@ def scan_and_select_interactive(
     cache_key = "|".join(sorted(base_dirs))
     ttl = cache_ttl if cache_ttl is not None else CACHE_TTL
 
-    skip_set = frozenset(os.path.basename(s).lower() for s in skip_dirs) if skip_dirs is not None else frozenset({"appdata", "onedrive"})
+    skip_set = (
+        frozenset(os.path.basename(s).lower() for s in skip_dirs)
+        if skip_dirs is not None
+        else frozenset({"appdata", "onedrive"})
+    )
 
     loaded_from_cache = False
     if not no_cache:
@@ -167,7 +183,8 @@ def scan_and_select_interactive(
         if cached is not None:
             all_entries, symlink_count = cached
             loaded_from_cache = True
-            print("  使用缓存结果（10分钟内有效）")
+            ttl_min = int(ttl / 60)
+            print("  使用缓存结果（", ttl_min, "分钟内有效）")
 
     if not loaded_from_cache:
         all_entries = []
@@ -197,8 +214,6 @@ def scan_and_select_interactive(
 
             if skip_count:
                 print(f"  已过滤 {skip_count} 个特殊目录")
-            # if appdata_extra:
-            #     print(f"  额外从 AppData\\Local 和 AppData\\Roaming 扫描到 {appdata_extra} 个子目录")
 
             all_entries.extend(entries)
             symlink_count += sl
@@ -211,15 +226,19 @@ def scan_and_select_interactive(
         if not to_scan:
             print(f"  所有子目录均已迁移（共 {symlink_count} 个软链接），无需处理。")
             return 0
-        
+
         for i, entry in enumerate(to_scan, 1):
             entry.size_bytes = _calc_dir_size(entry.path)
-            sys.stdout.write(f"\r  正在统计目录大小 ...   {i}/{len(to_scan)}  {entry.name}  {format_size(entry.size_bytes)}  ")
+            sys.stdout.write(
+                f"\r  正在统计目录大小 ...   {i}/{len(to_scan)}  {entry.name}  {format_size(entry.size_bytes)}  "
+            )
             sys.stdout.flush()
         print()
         # 缓存计算结果
         _save_cache(base_dir, all_entries, symlink_count)
-        print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
+        print(
+            f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）"
+        )
 
         total_dirs = len(to_scan)
     else:
@@ -227,9 +246,10 @@ def scan_and_select_interactive(
         if not to_scan:
             print("  所有子目录均已迁移，无需处理。")
             return 0
-        print(f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）")
+        print(
+            f"  共 {len(all_entries)} 个子目录，已跳过 {symlink_count} 个已迁移目录（软链接）"
+        )
 
-        # print(f"  正在统计目录大小 ...   0/{total_dirs}", end="", flush=True)    # -- 4. 按大小降序排列 --
     # ── 4. 按大小降序排列 ──
     to_scan.sort(key=lambda e: e.size_bytes, reverse=True)
 
@@ -247,10 +267,14 @@ def scan_and_select_interactive(
     to_scan = filtered
 
     if hidden_count:
-        print(f"  已忽略 {hidden_count} 个小于 {format_size(min_size)} 的目录(合计 {format_size(hidden_total)})")
+        print(
+            f"  已忽略 {hidden_count} 个小于 {format_size(min_size)} 的目录(合计 {format_size(hidden_total)})"
+        )
 
     if not to_scan:
-        print(f"  共扫描到 {total_before} 个目录，均小于 {format_size(min_size)}，全部忽略（使用 --min-size 0 查看所有目录）")
+        print(
+            f"  共扫描到 {total_before} 个目录，均小于 {format_size(min_size)}，全部忽略（使用 --min-size 0 查看所有目录）"
+        )
         return 0
 
     # ── 5. 展示结果 ──
@@ -281,7 +305,9 @@ def scan_and_select_interactive(
         print(f"{'='*60}")
         print(f"  处理: {entry.path}")
         try:
-            move_and_link(entry.path, dst_dir=dest_dir, dry_run=dry_run, skip_confirm=True)
+            move_and_link(
+                entry.path, dst_dir=dest_dir, dry_run=dry_run, skip_confirm=True
+            )
             success += 1
         except DryRunError:
             success += 1
@@ -333,6 +359,3 @@ def _select_entries(entries: list[ScanEntry]) -> list[ScanEntry]:
         if 1 <= idx <= len(entries):
             result.append(entries[idx - 1])
     return result
-
-
-
